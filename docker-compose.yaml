@@ -7,6 +7,8 @@ services:
       - .env
     ports:
       - "88:80"
+    volumes:
+      - .:/app
     depends_on:
       db:
         condition: service_healthy
