@@ -11,10 +11,14 @@ The current version includes basic endpoints, tests, environment configuration, 
 - FastAPI
 - Uvicorn
 - Docker
+- Docker Compose
+- Pipenv
+- PostgreSQL
+- Pre-commit
 - Pydantic
 - Pytest
-- Pipenv
-- Pre-commit
+- Redis
+- SQL Alchemy
 ---
 
 ## Installation and launch
@@ -37,17 +41,6 @@ cp .env.sample .env
 ```bash
 pipenv shell
 ```
-5. Start the server:
-```bash
-pipenv run uvicorn app.main:app --reload
-```
-6. Access the API at: http://127.0.0.1:8000
----
-
-## API Documentation
-1. Swagger UI available at: http://127.0.0.1:8000/docs
-2. Alternative automatic documentation: http://127.0.0.1:8000/redoc
-2. OpenAPI schema: http://127.0.0.1:8000/openapi.json
 ---
 
 ## Testing
@@ -65,6 +58,11 @@ docker --version
 2. Build the image:
 ```bash
 docker build -t quiz-api .
+```
+or to run with Docker Compose (Recommended):
+
+```bash
+docker compose up --build
 ```
 3. Verify image:
 ```bash
@@ -88,7 +86,7 @@ docker exec -it <container_id> env
 ```
 8. Run tests inside Docker:
 ```bash
-docker run --rm --env-file .env quiz-api pipenv run pytest
+docker run --rm --env-file .env <container_name> pipenv run pytest
 ```
    - connect to container::
 ```bash
@@ -115,6 +113,61 @@ docker stop <container_id>
 docker rm <container_id>
 ```
 ---
+
+## Redis Cache
+
+Redis is used for caching API responses and temporary data storage.
+It runs as a separate service inside Docker.
+
+1. Redis is used to:
+   - Store cached responses
+   - Improve performance
+   - Reduce database load
+   - Demonstrate cache integration
+
+2. Implementation
+   - The project uses an asynchronous Redis client (redis.asyncio).
+   - Caching logic is implemented in RedisService.
+
+3. Main features:
+   - HSET/HGETALL/DELETE for hash storage
+   - Automatic TTL expiration
+   - Connection pooling
+   - Pipeline usage for atomic operations
+
+4. Cache Structure
+   - Cached response example:
+```bash
+Key: response
+
+Hash:
+  status_code → 200
+  detail      → success
+  result      → created
+```
+
+5. TTL (Time To Live)
+   - Cache expiration is controlled by:<code>REDIS_TTL=3600</code>
+   - All cached data is automatically removed after expiration.
+
+6. Cache Deletion
+   - Cached data can be removed manually using the Redis DELETE command.
+   - This is useful when: cached data becomes outdated,
+      data was updated in the database
+   - Cache invalidation is required
+   - Manual cleanup is needed
+
+7. Redis Service Usage Example:
+```bash
+await redis_service.hset(
+    "response",
+    status_code=200,
+    detail="ok",
+    result="working",
+)
+
+data = await redis_service.hgetall("response")
+```
 
 ## Code review (pre-commit)
 Manually launching checks:
