@@ -10,6 +10,7 @@ The current version includes basic endpoints, tests, environment configuration, 
 - Python 3.12
 - FastAPI
 - Uvicorn
+- Docker
 - Pydantic
 - Pytest
 - Pipenv
@@ -53,6 +54,65 @@ pipenv run uvicorn app.main:app --reload
 To run tests:
 ```bash
 pipenv run pytest
+```
+---
+
+## Docker Workflow
+1. Check Docker installation:
+```bash
+docker --version
+```
+2. Build the image:
+```bash
+docker build -t quiz-api .
+```
+3. Verify image:
+```bash
+docker images
+```
+4. Run container::
+```bash
+docker run -p 88:80 --env-file .env quiz-api
+```
+5. Access application:
+   - the API will be available at: http://localhost:88
+   - swagger documentation: http://localhost:88/docs
+   - alternative automatic documentation: http://localhost:88/redoc
+6. To view running containers:
+```bash
+docker ps
+```
+7. Check env file:
+```bash
+docker exec -it <container_id> env
+```
+8. Run tests inside Docker:
+```bash
+docker run --rm --env-file .env quiz-api pipenv run pytest
+```
+   - connect to container::
+```bash
+docker exec -it <container_id> bash
+```
+or
+```bash
+docker exec -it <container_id> sh
+```
+   - running tests:
+```bash
+pipenv run pytest
+```
+- exit
+```bash
+exit
+```
+9. To stop a running container:
+```bash
+docker stop <container_id>
+```
+10. To remove the container:
+```bash
+docker rm <container_id>
 ```
 ---
 
