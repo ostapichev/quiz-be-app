@@ -9,7 +9,7 @@ class RedisService:
     def __init__(self):
         self._pool: Optional[aioredis.Redis] = None
 
-    async def get_redis_client(self) -> aioredis.Redis:
+    def get_redis_client(self) -> aioredis.Redis:
         if self._pool is None:
             self._pool = aioredis.Redis.from_url(
                 url=settings.redis.url,
