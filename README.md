@@ -128,6 +128,14 @@ It runs as a separate service inside Docker.
    - Connection pooling
    - Pipeline usage for atomic operations
 
+___
+## Testing
+To run tests:
+```bash
+docker compose -f docker-compose.test.yaml up --build
+```
+___
+
 ## Code review (pre-commit)
 Manually launching checks:
 ```bash

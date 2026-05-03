@@ -7,9 +7,24 @@ from app.db import BaseModel, IDMixinModel, TimestampMixinModel
 class UserModel(BaseModel, IDMixinModel, TimestampMixinModel):
     __tablename__ = "users"
 
-    name: Mapped[str] = mapped_column(String(20))
-    surname: Mapped[str] = mapped_column(String(30))
-    username: Mapped[str] = mapped_column(String(30), unique=True)
-    email: Mapped[str] = mapped_column(String(30), unique=True)
-    password: Mapped[str] = mapped_column(String(255), nullable=True)
-    phone: Mapped[str] = mapped_column(String(12), unique=True)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    surname: Mapped[str] = mapped_column(String(50), nullable=False)
+    username: Mapped[str] = mapped_column(
+        String(50),
+        unique=True,
+        nullable=False,
+    )
+    email: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        nullable=False,
+    )
+    hashed_password: Mapped[str] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    phone: Mapped[str] = mapped_column(
+        String(20),
+        unique=True,
+        nullable=True,
+    )
