@@ -6,7 +6,7 @@ from app.core.settings import settings
 
 
 class RedisService:
-    def __init__(self):
+    def __init__(self) -> None:
         self._pool: Optional[aioredis.Redis] = None
 
     def get_redis_client(self) -> aioredis.Redis:

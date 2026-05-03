@@ -1,39 +1,45 @@
-from pydantic import EmailStr, SecretStr
-from pydantic_extra_types.phone_numbers import PhoneNumber
+from typing import Optional
 
-from app.db.base_model import TimestampMixinModel
-from app.schemas import BaseSchema, IDMixinSchema
+from pydantic import EmailStr
+
+from app.schemas import BaseSchema, IDMixinSchema, TimeStampMixinSchema
+
+
+class UserBaseSchema(BaseSchema):
+    name: str
+    surname: str
+    username: str
+    email: EmailStr
+    phone: str
 
 
 class UserSignInRequestSchema(BaseSchema):
     email: EmailStr
-    password: SecretStr
+    password: str
 
 
-class UserSignUpRequestSchema(BaseSchema):
-    name: str
-    surname: str
-    username: str
-    email: EmailStr
-    password: SecretStr
-    phone: PhoneNumber
+class UserSignUpRequestSchema(UserBaseSchema):
+    password: str
 
 
 class UserUpdateRequestSchema(BaseSchema):
-    name: str
-    surname: str
-    username: str
-    password: SecretStr
+    name: Optional[str] = None
+    surname: Optional[str] = None
+    password: Optional[str] = None
 
 
-class UserDetailsResponseSchema(BaseSchema, IDMixinSchema, TimestampMixinModel):
-    name: str
-    surname: str
-    username: str
-    email: EmailStr
-    phone_number: PhoneNumber
-
-
-class UserListResponseSchema(BaseSchema, IDMixinSchema, TimestampMixinModel):
+class UserResponseSchema(
+    BaseSchema,
+    IDMixinSchema,
+    TimeStampMixinSchema,
+):
     username: str
     email: EmailStr
+
+
+class UserDetailsResponseSchema(
+    UserBaseSchema,
+    IDMixinSchema,
+    TimeStampMixinSchema,
+):
+    pass

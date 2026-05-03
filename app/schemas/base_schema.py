@@ -7,10 +7,10 @@ class BaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class IDMixinSchema(BaseSchema):
+class IDMixinSchema(BaseModel):
     id: int
 
 
-class TimeStampMixinSchema(BaseSchema):
+class TimeStampMixinSchema(BaseModel):
     created_at: datetime
     updated_at: datetime

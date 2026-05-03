@@ -3,8 +3,6 @@ services:
   backend:
     build: .
     container_name: quiz_backend
-    env_file:
-      - .env
     ports:
       - "88:80"
     volumes:

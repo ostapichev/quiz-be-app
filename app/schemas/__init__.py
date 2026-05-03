@@ -1,7 +1,8 @@
 from .base_schema import BaseSchema, IDMixinSchema, TimeStampMixinSchema
+from .pagination_schema import PaginationSchema
 from .user_schema import (
     UserDetailsResponseSchema,
-    UserListResponseSchema,
+    UserResponseSchema,
     UserSignInRequestSchema,
     UserSignUpRequestSchema,
     UserUpdateRequestSchema,
@@ -10,9 +11,10 @@ from .user_schema import (
 __all__ = [
     "BaseSchema",
     "IDMixinSchema",
+    "PaginationSchema",
     "TimeStampMixinSchema",
     "UserDetailsResponseSchema",
-    "UserListResponseSchema",
+    "UserResponseSchema",
     "UserSignInRequestSchema",
     "UserSignUpRequestSchema",
     "UserUpdateRequestSchema",
