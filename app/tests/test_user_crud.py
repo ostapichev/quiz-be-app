@@ -25,6 +25,8 @@ async def test_create_user(
     user_service: UserService,
 ) -> None:
     created_user = await user_service.create_user(single_user)
+    user_model = await uow.user_repository.get_user_by_id(created_user.id)
+    hashed_password = user_model.hashed_password
 
     with pytest.raises(ConflictException) as exc_info:
         await user_service.create_user(single_user)
@@ -32,6 +34,7 @@ async def test_create_user(
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     assert created_user.id is not None
 
+    assert single_user.password != hashed_password
     assert single_user.name == created_user.name
     assert single_user.surname == created_user.surname
     assert single_user.username == created_user.username

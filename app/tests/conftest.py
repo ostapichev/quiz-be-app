@@ -13,6 +13,7 @@ from app.core.settings import settings
 from app.db import UserModel, UnitOfWork
 from app.schemas import UserSignUpRequestSchema
 from app.services import UserService
+from app.utils import hash_password
 
 UserFactory: TypeAlias = Callable[[int], list[UserSignUpRequestSchema]]
 
@@ -58,7 +59,7 @@ def user_factory(faker_instance: Faker) -> UserFactory:
                 email=faker_instance.email(),
                 username=faker_instance.user_name(),
                 phone=f"+180{faker_instance.msisdn()[3:]}",
-                password=faker_instance.password(),
+                password=hash_password(faker_instance.password()),
             )
             for _ in range(count)
         ]
