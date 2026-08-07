@@ -13,3 +13,5 @@ services:
   test_db:
     image: postgres:17
     container_name: test_db
+    env_file:
+      - .env.test

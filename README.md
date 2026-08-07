@@ -13,10 +13,12 @@ The current version includes basic endpoints, tests, environment configuration, 
 - Alembic
 - Docker
 - Docker Compose
+- Pillow
 - Pipenv
 - PostgreSQL
 - Pre-commit
 - Pydantic
+- Pyjwt
 - Pytest
 - Redis
 - SQL Alchemy
@@ -34,7 +36,7 @@ cd quiz-be-app
 ```bash
 pipenv install
 ```
-3. Create <code>.env</code> file using <code>.env.sample</code>:
+3. Create `.env` file using <code>.env.sample</code>:
 ```bash
 cp .env.sample .env
 ```
@@ -105,6 +107,84 @@ docker exec quiz_backend alembic revision --autogenerate -m "message"
 ```bash
 docker exec quiz_backend alembic upgrade head
 ```
+---
+
+## Create Superuser
+
+1. Set the superuser credentials in the `.env` file.
+2. Start the application.
+3. Run:
+
+```bash
+docker exec quiz_backend python -m app.cli.create_superuser
+```
+4. The superuser will be created in the database.
+
+---
+
+## Authentication
+
+The API uses JWT Bearer authentication.
+
+### 1. Register a new user
+
+```
+POST /api/users
+```
+
+Example request:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "StrongPassword123!",
+  "name": "John",
+  "surname": "Doe",
+  "gender": "male",
+  "phone": "+380991112233"
+}
+```
+
+---
+
+### 2. Get an access token
+
+```
+POST /api/auth/login
+```
+
+Request:
+
+```
+username=user@example.com
+password=StrongPassword123!
+```
+
+Response:
+
+```json
+{
+  "access_token": "<JWT_TOKEN>",
+  "token_type": "bearer"
+}
+```
+
+---
+
+### 3. Authorize in Swagger UI
+
+1. Open `/docs`.
+2. Click **Authorize**.
+3. Paste the access token.
+4. Click **Authorize** and **Close**.
+
+After authorization, all protected endpoints can be accessed directly from Swagger UI.
+
+
+### Note
+Although the login form uses the username field,
+your API expects the user's email address in this field.
+This behavior follows the OAuth2 Password Flow specification.
 ---
 
 ## Redis Cache

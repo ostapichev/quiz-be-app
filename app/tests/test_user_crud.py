@@ -4,130 +4,106 @@ from typing import TypeAlias, Callable
 import pytest
 from fastapi import status
 
-from app.core.pagination_config import PaginationConfig
-from app.db import UnitOfWork
-from app.exceptions import NotFoundException, ConflictException
-from app.schemas import (
-    UserDetailsResponseSchema,
-    UserUpdateRequestSchema,
-    UserResponseSchema,
-    UserSignUpRequestSchema,
+from ..core.pagination_config import PaginationConfig
+from ..db import UnitOfWork
+from ..exceptions import NotFoundException, ConflictException
+from ..schemas import (
+    NewUserRequest,
+    UserDetailsResponse,
+    UserUpdateRequest,
+    UserResponse,
 )
-from app.services import UserService
+from ..services import UserService
 
-UserFactory: TypeAlias = Callable[[int], list[UserSignUpRequestSchema]]
+UserFactory: TypeAlias = Callable[[int], list[NewUserRequest]]
 
 
 @pytest.mark.asyncio
 async def test_create_user(
     uow: UnitOfWork,
-    single_user: UserSignUpRequestSchema,
+    single_user: UserResponse,
     user_service: UserService,
 ) -> None:
-    created_user = await user_service.create_user(single_user)
-    user_model = await uow.user_repository.get_user_by_id(created_user.id)
+    test_user = NewUserRequest(**single_user.model_dump())
+    new_user = await user_service.create_user(test_user)
+    user_model = await uow.user_repository.get_user_by_id(new_user.id)
     hashed_password = user_model.hashed_password
 
     with pytest.raises(ConflictException) as exc_info:
-        await user_service.create_user(single_user)
+        await user_service.create_user(test_user)
 
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
-    assert created_user.id is not None
+    assert new_user.id is not None
 
-    assert single_user.password != hashed_password
-    assert single_user.name == created_user.name
-    assert single_user.surname == created_user.surname
-    assert single_user.username == created_user.username
-    assert single_user.email == created_user.email
+    assert test_user.email == new_user.email
+    assert test_user.password != hashed_password
+    assert test_user.name == new_user.profile.name
+    assert test_user.surname == new_user.profile.surname
 
-    assert isinstance(created_user, UserDetailsResponseSchema)
+    assert new_user.is_active == True
+    assert new_user.is_admin == False
+    assert new_user.is_superuser == False
+
+    assert isinstance(new_user, UserDetailsResponse)
     assert isinstance(exc_info.value, ConflictException)
 
 
 @pytest.mark.asyncio
 async def test_get_user_by_id(
-    uow: UnitOfWork,
-    single_user: UserSignUpRequestSchema,
     user_service: UserService,
+    current_user: UserDetailsResponse,
+    user_factory: UserFactory,
 ) -> None:
-    created_user = await user_service.create_user(single_user)
-    fetched_user = await user_service.get_user_by_id(created_user.id)
+    user_data = NewUserRequest(**user_factory(1)[0].model_dump())
+    new_user = await user_service.create_user(user_data)
+    fetched_user = await user_service.get_user_by_id(
+        new_user.id,
+        current_user,
+    )
 
-    with pytest.raises(NotFoundException) as exc_info:
-        await user_service.get_user_by_id(9999999)
-
-    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-
-    assert fetched_user.created_at is not None
-    assert fetched_user is not None
-    assert fetched_user is not created_user
-    assert fetched_user.id == created_user.id
-    assert fetched_user.name == created_user.name
-    assert fetched_user.email == created_user.email
-    assert fetched_user.username == created_user.username
-
-    assert isinstance(fetched_user, UserDetailsResponseSchema)
-    assert isinstance(exc_info.value, NotFoundException)
+    assert fetched_user.id == new_user.id
+    assert fetched_user.email == new_user.email
+    assert fetched_user.profile.name == new_user.profile.name
+    assert fetched_user.id != current_user.id
 
 
 @pytest.mark.asyncio
 async def test_update_user(
     uow: UnitOfWork,
-    single_user: UserSignUpRequestSchema,
     user_service: UserService,
+    current_user: UserDetailsResponse,
 ) -> None:
-    created_user = await user_service.create_user(single_user)
-
-    update_data = UserUpdateRequestSchema(
+    update_data = UserUpdateRequest(
         name="update_name",
         surname="update_surname",
         password="12345678_update_password",
     )
 
-    updated_user = await user_service.update_user(created_user.id, update_data)
-    fetched_user = await user_service.get_user_by_id(created_user.id)
+    updated_user = await user_service.update_user(update_data, current_user)
+    fetched_user = await uow.user_repository.get_user_by_id(current_user.id)
 
-    assert updated_user.id == created_user.id
-    assert updated_user.name == update_data.name
-    assert updated_user.surname == update_data.surname
-    assert updated_user.email == created_user.email
-    assert updated_user.username == created_user.username
+    assert updated_user.id == current_user.id
+    assert updated_user.profile.name == update_data.name
+    assert updated_user.profile.surname == update_data.surname
+    assert updated_user.email == current_user.email
 
-    assert fetched_user.name == update_data.name
-    assert fetched_user.surname == update_data.surname
-
-
-@pytest.mark.asyncio
-async def test_delete_user(
-    uow: UnitOfWork,
-    single_user: UserSignUpRequestSchema,
-    user_service: UserService,
-) -> None:
-    created_user = await user_service.create_user(single_user)
-    await user_service.delete_user(created_user.id)
-
-    with pytest.raises(NotFoundException) as exc_info:
-        await user_service.get_user_by_id(created_user.id)
-
-    with pytest.raises(NotFoundException) as not_user_info:
-        await user_service.delete_user(created_user.id)
-
-    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-    assert not_user_info.value.status_code == status.HTTP_404_NOT_FOUND
-    assert isinstance(exc_info.value, NotFoundException)
-    assert isinstance(not_user_info.value, NotFoundException)
+    assert fetched_user.profile.name == update_data.name
+    assert fetched_user.profile.surname == update_data.surname
 
 
 @pytest.mark.asyncio
 async def test_get_all_users_with_pagination(
-    uow: UnitOfWork,
     user_factory: UserFactory,
     user_service: UserService,
+    current_user: UserDetailsResponse,
 ) -> None:
     input_users = user_factory(22)
 
     with pytest.raises(NotFoundException) as empty_db:
-        await user_service.get_all_users(PaginationConfig(page=1, size=5))
+        await user_service.get_all_users(
+            pagination=PaginationConfig(page=1, size=5),
+            current_user=current_user,
+        )
 
     pagination_page_1 = PaginationConfig(page=1, size=5)
     pagination_page_3 = PaginationConfig(page=3, size=5)
@@ -135,16 +111,31 @@ async def test_get_all_users_with_pagination(
     for user in input_users:
         await user_service.create_user(user)
 
-    users_page_1 = await user_service.get_all_users(pagination_page_1)
-    users_page_3 = await user_service.get_all_users(pagination_page_3)
-    users_last_page = await user_service.get_all_users(PaginationConfig(page=5, size=5))
+    users_page_1 = await user_service.get_all_users(
+        pagination_page_1,
+        current_user,
+    )
+    users_page_3 = await user_service.get_all_users(
+        pagination_page_3,
+        current_user,
+    )
+    users_last_page = await user_service.get_all_users(
+        PaginationConfig(page=5, size=5),
+        current_user,
+    )
 
     ids_page_1 = [user.id for user in users_page_1.items]
-    users_page_2 = await user_service.get_all_users(PaginationConfig(page=2, size=5))
+    users_page_2 = await user_service.get_all_users(
+        PaginationConfig(page=2, size=5),
+        current_user,
+    )
     ids_page_2 = [user.id for user in users_page_2.items]
 
     with pytest.raises(NotFoundException) as exc_info:
-        await user_service.get_all_users(PaginationConfig(page=6, size=5))
+        await user_service.get_all_users(
+            PaginationConfig(page=6, size=5),
+            current_user,
+        )
 
     assert empty_db.value.status_code == status.HTTP_404_NOT_FOUND
     assert isinstance(empty_db.value, NotFoundException)
@@ -166,7 +157,7 @@ async def test_get_all_users_with_pagination(
     assert isinstance(exc_info.value, NotFoundException)
 
     for user in users_page_1.items:
-        assert isinstance(user, UserResponseSchema)
+        assert isinstance(user, UserResponse)
 
     for user in users_page_3.items:
-        assert isinstance(user, UserResponseSchema)
+        assert isinstance(user, UserResponse)

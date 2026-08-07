@@ -4,8 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import select
 
-from app.db import get_session, session_close
-from app.services import RedisService
+from ..db import get_session, session_close
+from ..services import RedisService
 
 logger = logging.getLogger(__name__)
 

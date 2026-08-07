@@ -1,17 +1,16 @@
-from .base_model import BaseModel, IDMixinModel, TimestampMixinModel
+from .base_model import Base
 from .database import async_session_factory, engine, get_session, session_close
-from .models import UserModel
+from .models import User, Profile
 from .unit_of_work import UnitOfWork
 
 __all__ = [
     "async_session_factory",
-    "BaseModel",
+    "Base",
     "engine",
     "get_session",
-    "IDMixinModel",
     "session_close",
     "engine",
-    "TimestampMixinModel",
+    "Profile",
     "UnitOfWork",
-    "UserModel",
+    "User",
 ]

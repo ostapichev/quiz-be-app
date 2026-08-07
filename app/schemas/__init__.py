@@ -1,21 +1,34 @@
-from .base_schema import BaseSchema, IDMixinSchema, TimeStampMixinSchema
-from .pagination_schema import PaginationSchema
-from .user_schema import (
-    UserDetailsResponseSchema,
-    UserResponseSchema,
-    UserSignInRequestSchema,
-    UserSignUpRequestSchema,
-    UserUpdateRequestSchema,
+from .auth import Token, TokenData
+from .base import Base, IDMixinSchema, TimeStampMixinSchema
+from .pagination import Pagination
+from .user import (
+    NewUserRequest,
+    ProfileBase,
+    ProfileUpdateRequest,
+    SuperUserRequest,
+    UpdatePasswordRequest,
+    UserDetailsResponse,
+    UserResponse,
+    UserSignInRequest,
+    UserSignUpRequest,
+    UserUpdateRequest,
 )
 
 __all__ = [
-    "BaseSchema",
+    "Base",
     "IDMixinSchema",
-    "PaginationSchema",
+    "NewUserRequest",
+    "Pagination",
+    "ProfileBase",
+    "ProfileUpdateRequest",
+    "SuperUserRequest",
     "TimeStampMixinSchema",
-    "UserDetailsResponseSchema",
-    "UserResponseSchema",
-    "UserSignInRequestSchema",
-    "UserSignUpRequestSchema",
-    "UserUpdateRequestSchema",
+    "Token",
+    "TokenData",
+    "UpdatePasswordRequest",
+    "UserDetailsResponse",
+    "UserResponse",
+    "UserSignInRequest",
+    "UserSignUpRequest",
+    "UserUpdateRequest",
 ]

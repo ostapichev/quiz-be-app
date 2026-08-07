@@ -1,5 +1,7 @@
-from pydantic import Field
+from pydantic import Field, EmailStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from ..enums import GenderEnum
 
 
 class BaseConfig(BaseSettings):
@@ -57,6 +59,23 @@ class RedisConfig(BaseConfig):
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 
+class SuperUserConfig(BaseConfig):
+    EMAIL: EmailStr = Field(...)
+    PASSWORD: str = Field(...)
+
+    NAME: str = Field(...)
+    SURNAME: str = Field(...)
+    GENDER: GenderEnum = Field(...)
+    PICTURE: str | None = Field(...)
+    PHONE: str = Field(...)
+
+
+class AuthConfig(BaseConfig):
+    ALGORITHM: str = Field(...)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(...)
+    DUMMY_PASSWORD: str = Field(...)
+
+
 class Settings(BaseConfig):
     PORT: int = Field(...)
     HOST: str = Field(...)
@@ -64,6 +83,8 @@ class Settings(BaseConfig):
     SECRET_KEY: str = Field(...)
     DEBUG: bool = False
 
+    auth: AuthConfig = AuthConfig()
+    superuser: SuperUserConfig = SuperUserConfig()
     db: DataBaseConfig = DataBaseConfig()
     test_db: DataBaseTestConfig = DataBaseTestConfig()
     redis: RedisConfig = RedisConfig()

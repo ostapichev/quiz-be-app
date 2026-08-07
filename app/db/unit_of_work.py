@@ -1,11 +1,11 @@
 from typing import TypeVar
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import BaseModel
-from app.repositories import UserRepository
+from ..db import Base
+from ..repositories import UserRepository
 
-ModelType = TypeVar("ModelType", bound=BaseModel)
+ModelType = TypeVar("ModelType", bound=Base)
 
 
 class UnitOfWork:
