@@ -188,6 +188,69 @@ This behavior follows the OAuth2 Password Flow specification.
 
 ---
 
+### Auth0 Authentication
+
+This project supports two authentication methods: local (email/password) and Auth0 (OAuth via Google, etc).
+
+#### 1. Auth0 Dashboard Setup
+
+1. Create an application in [Auth0 Dashboard](https://manage.auth0.com) → **Applications → Applications → Create Application** → type **Single Page Application**.
+2. In **Settings**, configure:
+   - **Allowed Callback URLs**: `http://localhost:3000`
+   - **Allowed Logout URLs**: `http://localhost:3000`
+   - **Allowed Web Origins**: `http://localhost:3000`
+3. Create an API: **Applications → APIs → Create API**
+   - **Identifier** (audience): e.g. `http://localhost:4000/`
+4. Authorize your SPA client for this API: open the API → **Application Access** tab → enable the toggle for your application.
+5. Add a **Post-Login Action** (**Actions → Library → Build Custom**, trigger: `Login`) to expose profile claims on the access token, since they aren't included by default:
+
+```javascript
+   exports.onExecutePostLogin = async (event, api) => {
+     const namespace = 'https://myapp.example.com'; // must NOT be an *.auth0.com domain
+     if (event.authorization) {
+       api.accessToken.setCustomClaim(`${namespace}/email`, event.user.email);
+       api.accessToken.setCustomClaim(`${namespace}/email_verified`, event.user.email_verified);
+       api.accessToken.setCustomClaim(`${namespace}/given_name`, event.user.given_name);
+       api.accessToken.setCustomClaim(`${namespace}/family_name`, event.user.family_name);
+       api.accessToken.setCustomClaim(`${namespace}/picture`, event.user.picture);
+     }
+   };
+```
+
+   Deploy it, then attach it to the **Login** trigger under **Actions → Triggers**.
+
+#### 2. Environment Variables
+
+**Backend (`.env`)**
+```env
+AUTH0_DOMAIN=dev-xxxxxxxx.us.auth0.com
+AUTH0_AUDIENCE=http://localhost:4000/
+AUTH0_ACTIONS_NAMESPACE=https://myapp.example.com
+```
+
+**Frontend (`.env`)**
+```env
+REACT_APP_AUTH0_DOMAIN=dev-xxxxxxxx.us.auth0.com
+REACT_APP_AUTH0_CLIENT_ID=your_client_id
+REACT_APP_AUTH0_AUDIENCE=http://localhost:4000/
+```
+
+#### 3. How It Works
+
+1. Frontend redirects to Auth0 via `@auth0/auth0-react` (`loginWithRedirect`).
+2. After login, the SPA requests an access token (`getAccessTokenSilently`) and sends it as `Authorization: Bearer <token>` to `POST /api/auth/login/auth0_callback`.
+3. Backend verifies the token's signature against Auth0's JWKS (`PyJWKClient`), checks `audience`/`issuer`, then:
+   - looks up the user by email;
+   - if not found, creates a new user (`auth_provider="auth0"`, no password) and downloads their avatar from the `picture` claim, if present.
+4. Returns the same `UserDetailsResponse` shape as local login.
+
+#### 4. Notes
+
+- Users created via Auth0 have `hashed_password = None` and `auth_provider = "auth0"`. Local login explicitly rejects these accounts with a message pointing users to Auth0/Google sign-in.
+- Avatar downloads follow redirects and default to Gravatar's fallback image when the user has none set.
+
+---
+
 ## Redis Cache
 
 Redis is used for caching API responses and temporary data storage.
