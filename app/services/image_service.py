@@ -1,21 +1,26 @@
 import logging
 import shutil
 import uuid
-
-from fastapi import Request, UploadFile
 from io import BytesIO
 from pathlib import Path
+
+import httpx
+from fastapi import Request, UploadFile
+from starlette.datastructures import Headers, UploadFile as StarletteUploadFile
 from PIL import Image, UnidentifiedImageError
 
-from ..db import UnitOfWork
-from ..exceptions import BadRequestException
+from ..core.settings import settings
+from ..db import UnitOfWork, User
+from ..exceptions import BadRequestException, NotFoundException
 from ..schemas import UserDetailsResponse
+
+logger = logging.getLogger(__name__)
 
 
 class ImageService:
-    STATIC_FOLDER = Path("static")
-    MAX_FILE_SIZE = 5 * 1024 * 1024
-    AVATAR_SIZE = 128
+    STATIC_FOLDER = settings.STATIC_FOLDER
+    MAX_FILE_SIZE = settings.MAX_FILE_SIZE
+    AVATAR_SIZE = settings.AVATAR_SIZE
 
     def __init__(self, uow: UnitOfWork) -> None:
         self.uow = uow
@@ -24,47 +29,119 @@ class ImageService:
         self,
         request: Request,
         current_user: UserDetailsResponse,
-        file: UploadFile,
+        avatar: UploadFile,
     ) -> UserDetailsResponse:
-        folder = self.STATIC_FOLDER / Path("avatars") / f"user_{current_user.id}"
+        filepath = self.create_filepath(current_user.public_id)
+        self._save_and_process_image(avatar, filepath)
+        relative_path = self._to_relative(filepath)
+
+        return await self._update_user_avatar_path(
+            request,
+            current_user,
+            relative_path,
+        )
+
+    async def delete_avatar(
+        self,
+        current_user: UserDetailsResponse,
+    ) -> UserDetailsResponse:
+        user = await self.uow.user_repository.get_user_by_id(current_user.id)
+        if user is None or not user.profile or not user.profile.picture:
+            raise NotFoundException(f"{current_user.email} - has no avatar")
+
+        relative_path = user.profile.picture
+        full_path = self.STATIC_FOLDER / relative_path
+        if full_path.exists():
+            try:
+                shutil.rmtree(full_path.parent)
+            except OSError:
+                logger.warning(f"Failed to clean up avatar file at {full_path}")
+        else:
+            logger.warning(
+                f"Avatar file not found on disk at {full_path}, nothing to delete"
+            )
+
+        user.profile.picture = None
+        await self._save_user_data(user)
+
+        logger.warning(f"Avatar deleted for user: {user.email}")
+        return UserDetailsResponse.model_validate(user)
+
+    async def create_avatar(
+        self,
+        user_id: str,
+        avatar_file: UploadFile | None = None,
+    ) -> str | None:
+        if avatar_file is not None:
+            filepath = self.create_filepath(user_id)
+            self._save_and_process_image(avatar_file, filepath)
+
+            return self._to_relative(filepath)
+        return None
+
+    async def create_avatar_from_url(
+        self,
+        user_id: str,
+        picture_url: str,
+    ) -> str | None:
+        if not picture_url:
+            return None
+
+        try:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                response = await client.get(picture_url, timeout=10.0)
+                response.raise_for_status()
+        except httpx.HTTPError:
+            logger.warning(
+                f"Failed to download avatar for user {user_id} from {picture_url}"
+            )
+            return None
+
+        filepath = self.create_filepath(user_id)
+        content_type = response.headers.get("content-type", "image/png")
+
+        fake_upload_file = StarletteUploadFile(
+            file=BytesIO(response.content),
+            filename="avatar.png",
+            headers=Headers({"content-type": content_type}),
+        )
+        self._save_and_process_image(fake_upload_file, filepath)
+
+        return self._to_relative(filepath)
+
+    def create_filepath(self, user_id: str) -> Path:
+        folder = self.STATIC_FOLDER / Path("avatars") / f"user_{user_id}"
         filepath = folder / f"{uuid.uuid4().hex}.png"
 
         if folder.exists():
             shutil.rmtree(folder)
 
-        self._save_and_process_image(file, filepath)
+        return filepath
 
-        return await self._update_user_avatar_path(
-            request,
-            current_user,
-            filepath,
-        )
+    def _to_relative(self, filepath: Path) -> str:
+        return str(filepath.relative_to(self.STATIC_FOLDER))
 
     def _save_and_process_image(
         self,
-        file: UploadFile,
+        avatar: UploadFile,
         filepath: Path,
     ) -> None:
-
-        if file.content_type not in {
+        if avatar.content_type not in {
             "image/jpeg",
             "image/png",
             "image/webp",
         }:
-            logging.warning("This is not an image!")
-            raise BadRequestException
-
-        try:
-            contents = file.file.read()
-            if len(contents) > self.MAX_FILE_SIZE:
-                details = "This is file too large!"
-                logging.warning(details)
-                raise BadRequestException(details)
-            image = Image.open(BytesIO(contents))
-        except UnidentifiedImageError:
-            details = "Invalid image format!"
+            details = "This is not an image!"
             logging.warning(details)
             raise BadRequestException(details)
+
+        try:
+            contents = avatar.file.read()
+            if len(contents) > self.MAX_FILE_SIZE:
+                raise BadRequestException("This is file too large!")
+            image = Image.open(BytesIO(contents))
+        except UnidentifiedImageError:
+            raise BadRequestException("Invalid image format!")
 
         image_converted = self._image_converter(image)
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -74,25 +151,36 @@ class ImageService:
         self,
         request: Request,
         current_user: UserDetailsResponse,
-        filepath: Path,
+        relative_path: str,
     ) -> UserDetailsResponse:
         user = await self.uow.user_repository.get_user_by_id(current_user.id)
-        user.profile.picture = self._build_url(request, filepath)
+        user.profile.picture = relative_path
+        await self._save_user_data(user)
 
+        logging.info(
+            f"Updated avatar for user id: {current_user.id}, is saved to {relative_path}"
+        )
+        return self._to_response(request, user)
+
+    async def _save_user_data(self, user: UserDetailsResponse) -> None:
         await self.uow.user_repository.save(user)
         await self.uow.flush()
         await self.uow.refresh(user)
 
-        logging.info(f"Updated avatar for {current_user.id} is saved to {filepath}")
+    def _to_response(self, request: Request, user: User) -> UserDetailsResponse:
+        response = UserDetailsResponse.model_validate(user)
+        if response.profile and response.profile.picture:
+            response.profile.picture = self._build_url(
+                request, response.profile.picture
+            )
+        return response
 
-        return UserDetailsResponse.model_validate(user)
-
-    def _build_url(self, request: Request, filepath: Path) -> str:
-        relative_path = Path(filepath).relative_to(self.STATIC_FOLDER)
-
-        return f"{request.base_url}{self.STATIC_FOLDER}/{relative_path.as_posix()}"
+    def _build_url(self, request: Request, relative_path: str) -> str:
+        return f"{request.base_url}{self.STATIC_FOLDER}/{relative_path}"
 
     def _image_converter(self, image: Image.Image) -> Image.Image:
+        avatar_size = self.AVATAR_SIZE
+
         image = image.convert("RGBA")
         width, height = image.size
         min_side = min(width, height)
@@ -105,6 +193,6 @@ class ImageService:
         new_image = image.crop((offset_x, offset_y, right, bottom))
 
         return new_image.resize(
-            (self.AVATAR_SIZE, self.AVATAR_SIZE),
+            (avatar_size, avatar_size),
             Image.Resampling.LANCZOS,
         )

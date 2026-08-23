@@ -17,7 +17,7 @@ app = FastAPI(
 )
 
 
-origins = [settings.CLIENT_HOST]
+origins = [settings.CLIENT_HOST, settings.TEST_CLIENT_HOST]
 register_exception_handler(app)
 
 app.add_middleware(

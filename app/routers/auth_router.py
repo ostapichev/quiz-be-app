@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from ..core.dependencies import get_auth_service
@@ -25,8 +25,21 @@ async def user_login(
 
 
 @auth_router.get(
+    "/login/auth0_callback",
+    description="Login user with auth0",
+    response_model=UserDetailsResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def user_login_auth0(
+    request: Request,
+    service: AuthService = Depends(get_auth_service),
+) -> UserDetailsResponse:
+    return await service.verify_auth0_user(request)
+
+
+@auth_router.get(
     "/me",
-    description="User info",
+    description="My user info",
     response_model=UserDetailsResponse,
     status_code=status.HTTP_200_OK,
 )

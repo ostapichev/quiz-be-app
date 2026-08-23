@@ -6,6 +6,7 @@ from ..core.dependencies import (
     get_user_service,
     get_image_service,
     get_current_user,
+    get_new_user_request,
 )
 from ..core.pagination_config import PaginationConfig
 from ..schemas import (
@@ -13,7 +14,6 @@ from ..schemas import (
     Pagination,
     UserResponse,
     UserDetailsResponse,
-    UserSignUpRequest,
     UserUpdateRequest,
 )
 from ..services import ImageService, UserService
@@ -23,31 +23,15 @@ user_router = APIRouter(tags=["Users"], prefix="/users")
 
 @user_router.post(
     "/",
-    description="Create a new user",
     response_model=UserDetailsResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user(
-    user: Annotated[UserSignUpRequest, Form()],
+    user_data: NewUserRequest = Depends(get_new_user_request),
+    avatar: UploadFile | None = None,
     service: UserService = Depends(get_user_service),
 ) -> UserDetailsResponse:
-    new_user = NewUserRequest(**user.model_dump())
-    return await service.create_user(new_user)
-
-
-@user_router.post(
-    "/upload_avatar",
-    description="Upload an avatar",
-    response_model=UserDetailsResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def upload_avatar(
-    request: Request,
-    file: UploadFile,
-    service: ImageService = Depends(get_image_service),
-    current_user=Depends(get_current_user),
-) -> UserDetailsResponse:
-    return await service.upload_avatar(request, current_user, file)
+    return await service.create_user(user_data, avatar)
 
 
 @user_router.put(
@@ -90,3 +74,30 @@ async def get_user_details(
     current_user=Depends(get_current_user),
 ) -> UserDetailsResponse:
     return await service.get_user_by_id(user_id, current_user)
+
+
+@user_router.post(
+    "/avatar",
+    description="Upload an avatar",
+    response_model=UserDetailsResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_avatar(
+    request: Request,
+    avatar: UploadFile,
+    service: ImageService = Depends(get_image_service),
+    current_user=Depends(get_current_user),
+) -> UserDetailsResponse:
+    return await service.upload_avatar(request, current_user, avatar)
+
+
+@user_router.patch(
+    "/avatar",
+    description="Delete an avatar",
+    response_model=UserDetailsResponse,
+)
+async def delete_avatar(
+    service: ImageService = Depends(get_image_service),
+    current_user=Depends(get_current_user),
+) -> UserDetailsResponse:
+    return await service.delete_avatar(current_user)

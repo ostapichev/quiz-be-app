@@ -18,7 +18,7 @@ class UnicornException(Exception):
 
 
 class BadRequestException(UnicornException):
-    def __init__(self, detail="Bad request") -> None:
+    def __init__(self, detail: str = "Bad request") -> None:
         logger.error(detail)
         super().__init__(
             detail=detail,
@@ -36,7 +36,7 @@ class ConflictException(UnicornException):
 
 
 class CredentialsException(UnicornException):
-    def __init__(self, detail="Could not validate credentials") -> None:
+    def __init__(self, detail: str = "Could not validate credentials") -> None:
         logger.error(detail)
         super().__init__(
             detail=detail,
@@ -46,7 +46,7 @@ class CredentialsException(UnicornException):
 
 
 class NotFoundException(UnicornException):
-    def __init__(self, detail="Page not found") -> None:
+    def __init__(self, detail: str = "Page not found") -> None:
         logger.error(detail)
         super().__init__(
             detail=detail,
@@ -57,7 +57,7 @@ class NotFoundException(UnicornException):
 class PermissionException(UnicornException):
     def __init__(
         self,
-        detail="You do not have permission to perform this action",
+        detail: str = "You do not have permission to perform this action",
     ) -> None:
         logger.error(detail)
         super().__init__(
@@ -67,7 +67,16 @@ class PermissionException(UnicornException):
 
 
 class UnauthorizedException(UnicornException):
-    def __init__(self, detail="Incorrect email or password") -> None:
+    def __init__(self, detail: str = "Incorrect email or password") -> None:
+        logger.error(detail)
+        super().__init__(
+            detail=detail,
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+
+class InvalidTokenException(UnicornException):
+    def __init__(self, detail: str) -> None:
         logger.error(detail)
         super().__init__(
             detail=detail,

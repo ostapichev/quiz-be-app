@@ -1,10 +1,10 @@
 import logging.config
 
-from pathlib import Path
+from ..core.settings import settings
 
 
 class LoggingConfig:
-    LOG_DIR = Path("logs")
+    LOG_DIR = settings.LOG_DIR
     LOG_FILE = LOG_DIR / "app.log"
 
     @classmethod

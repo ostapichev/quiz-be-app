@@ -1,3 +1,3 @@
-from .enums import GenderEnum
+from .enums import AuthMethodEnum, GenderEnum
 
-__all__ = ["GenderEnum"]
+__all__ = ["AuthMethodEnum", "GenderEnum"]

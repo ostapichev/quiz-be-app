@@ -1,12 +1,11 @@
 from .auth import Token, TokenData
-from .base import Base, IDMixinSchema, TimeStampMixinSchema
+from .baseschema import BaseSchema, IDMixinSchema, TimeStampMixinSchema
 from .pagination import Pagination
 from .user import (
     NewUserRequest,
+    PasswordRequest,
     ProfileBase,
-    ProfileUpdateRequest,
-    SuperUserRequest,
-    UpdatePasswordRequest,
+    ProfileUpdateNumberRequest,
     UserDetailsResponse,
     UserResponse,
     UserSignInRequest,
@@ -15,17 +14,16 @@ from .user import (
 )
 
 __all__ = [
-    "Base",
+    "BaseSchema",
     "IDMixinSchema",
     "NewUserRequest",
     "Pagination",
+    "PasswordRequest",
     "ProfileBase",
-    "ProfileUpdateRequest",
-    "SuperUserRequest",
+    "ProfileUpdateNumberRequest",
     "TimeStampMixinSchema",
     "Token",
     "TokenData",
-    "UpdatePasswordRequest",
     "UserDetailsResponse",
     "UserResponse",
     "UserSignInRequest",

@@ -1,11 +1,8 @@
-from typing import TypeVar
+from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db import Base
 from ..repositories import UserRepository
-
-ModelType = TypeVar("ModelType", bound=Base)
 
 
 class UnitOfWork:
@@ -13,19 +10,19 @@ class UnitOfWork:
         self.session_db = session_db
         self.user_repository = UserRepository(self.session_db)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         return self
 
-    async def rollback(self):
+    async def rollback(self) -> None:
         await self.session_db.rollback()
 
-    async def flush(self):
+    async def flush(self) -> None:
         await self.session_db.flush()
 
-    async def refresh(self, instance):
+    async def refresh(self, instance) -> None:
         await self.session_db.refresh(instance)
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb) -> None:
         if exc:
             await self.session_db.rollback()
         else:

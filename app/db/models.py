@@ -1,17 +1,20 @@
+import uuid
 from typing import Annotated
 
 from sqlalchemy import String, Boolean, false, true, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
-from ..enums import GenderEnum
+from ..enums import GenderEnum, AuthMethodEnum
 
-optional_str = Annotated[str, mapped_column(String(50), nullable=True)]
+optional_str = Annotated[str | None, mapped_column(String(255), nullable=True)]
 boolean_flag_false = Annotated[
-    bool, mapped_column(Boolean, default=False, server_default=false())
+    bool,
+    mapped_column(Boolean, default=False, server_default=false()),
 ]
 boolean_flag_true = Annotated[
-    bool, mapped_column(Boolean, default=True, server_default=true())
+    bool,
+    mapped_column(Boolean, default=True, server_default=true()),
 ]
 
 
@@ -21,10 +24,11 @@ class User(Base):
         unique=True,
         nullable=False,
     )
-    hashed_password: Mapped[str] = mapped_column(
+    hashed_password: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
+    auth_provider: Mapped[AuthMethodEnum]
     is_active: Mapped[boolean_flag_true]
     is_admin: Mapped[boolean_flag_false]
     is_superuser: Mapped[boolean_flag_false]
@@ -39,16 +43,16 @@ class User(Base):
 class Profile(Base):
     name: Mapped[optional_str]
     surname: Mapped[optional_str]
-    gender: Mapped[GenderEnum]
-    picture: Mapped[str] = mapped_column(String(255), nullable=True)
-    phone: Mapped[str] = mapped_column(
+    gender: Mapped[GenderEnum | None]
+    picture: Mapped[optional_str]
+    phone: Mapped[str | None] = mapped_column(
         String(20),
         unique=True,
         nullable=True,
     )
-    user_id: Mapped[int] = mapped_column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id"),
-        unique=True,
+        primary_key=True,
     )
     user: Mapped["User"] = relationship(
         "User",

@@ -1,12 +1,15 @@
 import math
-from typing import TypeAlias, Callable
 
 import pytest
 from fastapi import status
 
 from ..core.pagination_config import PaginationConfig
 from ..db import UnitOfWork
-from ..exceptions import NotFoundException, ConflictException
+from ..enums import GenderEnum
+from ..exceptions import (
+    NotFoundException,
+    ConflictException,
+)
 from ..schemas import (
     NewUserRequest,
     UserDetailsResponse,
@@ -14,31 +17,30 @@ from ..schemas import (
     UserResponse,
 )
 from ..services import UserService
-
-UserFactory: TypeAlias = Callable[[int], list[NewUserRequest]]
+from .conftest import UserFactory
 
 
 @pytest.mark.asyncio
-async def test_create_user(
+async def test_create_user_without_avatar(
     uow: UnitOfWork,
-    single_user: UserResponse,
     user_service: UserService,
+    single_user: UserResponse,
 ) -> None:
-    test_user = NewUserRequest(**single_user.model_dump())
-    new_user = await user_service.create_user(test_user)
+    user_data = NewUserRequest(**single_user.model_dump())
+    new_user = await user_service.create_user(user_data)
     user_model = await uow.user_repository.get_user_by_id(new_user.id)
     hashed_password = user_model.hashed_password
 
     with pytest.raises(ConflictException) as exc_info:
-        await user_service.create_user(test_user)
+        await user_service.create_user(user_data)
 
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     assert new_user.id is not None
 
-    assert test_user.email == new_user.email
-    assert test_user.password != hashed_password
-    assert test_user.name == new_user.profile.name
-    assert test_user.surname == new_user.profile.surname
+    assert user_data.email == new_user.email
+    assert user_data.password != hashed_password
+    assert user_data.name == new_user.profile.name
+    assert user_data.surname == new_user.profile.surname
 
     assert new_user.is_active == True
     assert new_user.is_admin == False
@@ -77,6 +79,8 @@ async def test_update_user(
         name="update_name",
         surname="update_surname",
         password="12345678_update_password",
+        phone="+380675441236",
+        gender=GenderEnum.female,
     )
 
     updated_user = await user_service.update_user(update_data, current_user)
@@ -93,8 +97,8 @@ async def test_update_user(
 
 @pytest.mark.asyncio
 async def test_get_all_users_with_pagination(
-    user_factory: UserFactory,
     user_service: UserService,
+    user_factory: UserFactory,
     current_user: UserDetailsResponse,
 ) -> None:
     input_users = user_factory(22)

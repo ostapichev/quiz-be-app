@@ -49,12 +49,14 @@ class UserRepository:
             .where(User.id == user_id, *filters)
             .options(selectinload(User.profile))
         )
+
         return result.scalar_one_or_none()
 
-    async def get_user_by_email(self, email: str) -> User:
+    async def get_user_by_email(self, email: str) -> User | None:
         result = await self.session_db.execute(
             select(User).where(User.email == email).options(selectinload(User.profile))
         )
+
         return result.scalar_one_or_none()
 
     async def delete_user(self, user: User) -> None:

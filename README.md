@@ -185,6 +185,7 @@ After authorization, all protected endpoints can be accessed directly from Swagg
 Although the login form uses the username field,
 your API expects the user's email address in this field.
 This behavior follows the OAuth2 Password Flow specification.
+
 ---
 
 ## Redis Cache
