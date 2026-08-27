@@ -1,26 +1,26 @@
+import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import Integer, func
+from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+    declared_attr,
+)
 
 
-class BaseModel(DeclarativeBase):
-    pass
+class Base(AsyncAttrs, DeclarativeBase):
+    __abstract__ = True
 
-
-class IDMixinModel:
-    id: Mapped[int] = mapped_column(primary_key=True)
-
-
-class TimestampMixinModel:
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    public_id: Mapped[uuid.UUID] = mapped_column(default=uuid.uuid4, unique=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
+        server_default=func.now(), onupdate=func.now()
     )
+
+    @declared_attr.directive
+    def __tablename__(self) -> str:
+        return self.__name__.lower() + "s"

@@ -1,49 +1,63 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.db import UserModel
+from ..db import User
 
 
 class UserRepository:
     def __init__(self, session_db: AsyncSession) -> None:
         self.session_db = session_db
 
-    async def add_user(self, user: UserModel) -> None:
+    async def save(self, user: User) -> None:
         self.session_db.add(user)
 
-    async def get_all_users(self, skip, limit) -> tuple[list[UserModel], int]:
-        total_count = (
-            select(func.count(UserModel.id)).select_from(UserModel).scalar_subquery()
+    async def get_all_users(
+        self,
+        skip: int,
+        limit: int,
+        current_user_id: int,
+    ) -> tuple[list[User], int]:
+        filters = (
+            User.is_superuser.is_(False),
+            User.id != current_user_id,
         )
-        query = (
-            select(UserModel, total_count.label("total_count"))
+
+        total_count_result = await self.session_db.execute(
+            select(func.count(User.id)).where(*filters)
+        )
+        total_count = total_count_result.scalar_one()
+
+        if total_count == 0:
+            return [], 0
+
+        users_result = await self.session_db.execute(
+            select(User)
+            .where(*filters)
+            .options(selectinload(User.profile))
             .offset(skip)
             .limit(limit)
-            .order_by(UserModel.id.desc())
+            .order_by(User.id.desc())
         )
-        result = await self.session_db.execute(query)
-        rows = result.all()
-        if not rows:
-            return [], 0
-        items = [row[0] for row in rows]
-        total_items = rows[0][1]
-        return items, total_items
+        users = list(users_result.scalars().all())
+        return users, total_count
 
-    async def count_all(self) -> int:
-        result = await self.session_db.execute(select(func.count(UserModel.id)))
-        return result.scalar_one()
-
-    async def get_user_by_id(self, user_id: int) -> UserModel:
+    async def get_user_by_id(self, user_id: int) -> User | None:
+        filters = (User.is_superuser.is_(False),)
         result = await self.session_db.execute(
-            select(UserModel).where(UserModel.id == user_id)
+            select(User)
+            .where(User.id == user_id, *filters)
+            .options(selectinload(User.profile))
         )
+
         return result.scalar_one_or_none()
 
-    async def search_user_by_email(self, email: str) -> UserModel:
+    async def get_user_by_email(self, email: str) -> User | None:
         result = await self.session_db.execute(
-            select(UserModel).where(UserModel.email == email)
+            select(User).where(User.email == email).options(selectinload(User.profile))
         )
+
         return result.scalar_one_or_none()
 
-    async def delete_user(self, user: UserModel) -> None:
+    async def delete_user(self, user: User) -> None:
         await self.session_db.delete(user)

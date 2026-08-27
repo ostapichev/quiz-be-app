@@ -2,7 +2,7 @@ from typing import Optional
 
 import redis.asyncio as aioredis
 
-from app.core.settings import settings
+from ..core.settings import settings
 
 
 class RedisService:
@@ -15,6 +15,7 @@ class RedisService:
                 url=settings.redis.url,
                 decode_responses=True,
             )
+
         return self._pool
 
     async def hset(self, name: str, **kwargs) -> None:

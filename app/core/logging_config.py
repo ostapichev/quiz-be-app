@@ -1,16 +1,15 @@
 import logging.config
-import os
 
-LOG_DIR = "logs"
-LOG_FILE = os.path.join(LOG_DIR, "app.log")
-
-os.makedirs(LOG_DIR, exist_ok=True)
+from ..core.settings import settings
 
 
 class LoggingConfig:
-    @staticmethod
-    def setup():
-        os.makedirs(LOG_DIR, exist_ok=True)
+    LOG_DIR = settings.LOG_DIR
+    LOG_FILE = LOG_DIR / "app.log"
+
+    @classmethod
+    def setup(cls):
+        cls.LOG_DIR.mkdir(parents=True, exist_ok=True)
 
         logging_config = {
             "version": 1,
@@ -27,9 +26,10 @@ class LoggingConfig:
                 },
                 "file": {
                     "class": "logging.handlers.RotatingFileHandler",
-                    "filename": LOG_FILE,
-                    "maxBytes": 10 * 1024 * 1024,
+                    "filename": cls.LOG_FILE,
+                    "maxBytes": 2 * 1024 * 1024,
                     "backupCount": 5,
+                    "encoding": "utf-8",
                     "formatter": "default",
                 },
             },

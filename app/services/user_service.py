@@ -1,63 +1,133 @@
 import logging
 import math
 import re
+import uuid
 
+from fastapi import UploadFile
 from sqlalchemy.exc import IntegrityError
 
-from app.core.pagination_config import PaginationConfig
-from app.db import UnitOfWork, UserModel
-from app.exceptions import NotFoundException, ConflictException
-from app.schemas import (
-    PaginationSchema,
-    UserSignUpRequestSchema,
-    UserDetailsResponseSchema,
-    UserUpdateRequestSchema,
-    UserResponseSchema,
+from ..core.pagination_config import PaginationConfig
+from ..core.security import PasswordHasher
+from ..db import UnitOfWork, User, Profile
+from ..enums import AuthMethodEnum
+from ..exceptions import (
+    BadRequestException,
+    NotFoundException,
+    ConflictException,
 )
-from app.utils import hash_password
+from ..schemas import (
+    NewUserRequest,
+    Pagination,
+    ProfileUpdateNumberRequest,
+    PasswordRequest,
+    UserDetailsResponse,
+    UserUpdateRequest,
+    UserResponse,
+    UserSignUpRequest,
+)
+from ..services.image_service import ImageService
 
 logger = logging.getLogger(__name__)
 
 
 class UserService:
-    def __init__(self, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        image_service: ImageService,
+        security: PasswordHasher,
+    ) -> None:
         self.uow = uow
+        self.image_service = image_service
+        self.security = security
+
+    async def signup_user(
+        self,
+        user_data: UserSignUpRequest,
+        avatar_file: UploadFile | None = None,
+    ) -> UserDetailsResponse:
+        user_data = NewUserRequest(
+            email=user_data.email,
+            password=user_data.password,
+            name=user_data.name,
+            surname=user_data.surname,
+            phone=user_data.phone,
+        )
+        return await self.create_user(user_data, avatar_file)
 
     async def create_user(
         self,
-        user_data: UserSignUpRequestSchema,
-    ) -> UserDetailsResponseSchema:
+        user_data: NewUserRequest,
+        avatar_file: UploadFile | None = None,
+        picture_url: str | None = None,
+    ) -> UserDetailsResponse:
+        if user_data.auth_method == AuthMethodEnum.local and not user_data.password:
+            raise ValueError("Password is required for registration")
+
         try:
-            new_user = UserModel(
+            hashed_password = (
+                self.security.get_password_hash(user_data.password)
+                if user_data.password
+                else None
+            )
+            user = User(
+                email=user_data.email,
+                hashed_password=hashed_password,
+                is_active=user_data.is_active,
+                is_admin=user_data.is_admin,
+                is_superuser=user_data.is_superuser,
+                auth_provider=user_data.auth_method,
+                public_id=uuid.uuid4(),
+            )
+            profile = Profile(
                 name=user_data.name,
                 surname=user_data.surname,
-                username=user_data.username,
-                email=user_data.email,
+                gender=user_data.gender,
                 phone=user_data.phone,
-                hashed_password=hash_password(user_data.password),
             )
-            await self.uow.user_repository.add_user(new_user)
-            logger.info(f"User {new_user.username} created successfully!")
-            return await self._save_user_data(new_user)
+            user.profile = profile
 
+            await self.uow.user_repository.save(user)
+            await self.uow.flush()
         except IntegrityError as err:
-            await self.uow.rollback()
             detail = self._get_integrity_error_detail(err)
             raise ConflictException(detail)
+
+        if avatar_file:
+            picture_url = await self.image_service.create_avatar(
+                user_id=user.public_id,
+                avatar_file=avatar_file,
+            )
+
+        if picture_url:
+            avatar_path = await self.image_service.create_avatar_from_url(
+                user_id=user.public_id,
+                picture_url=picture_url,
+            )
+            profile.picture = avatar_path
+            await self.uow.user_repository.save(user)
+
+        logger.info(f"User {user.email} created successfully!")
+        return await self._save_user_data(user)
 
     async def get_all_users(
         self,
         pagination: PaginationConfig,
-    ) -> PaginationSchema[UserResponseSchema]:
+        current_user: UserDetailsResponse,
+    ) -> Pagination[UserResponse]:
         users, total_count = await self.uow.user_repository.get_all_users(
             skip=pagination.skip,
             limit=pagination.limit,
+            current_user_id=current_user.id,
         )
-        items = [UserResponseSchema.model_validate(user) for user in users]
+
+        items = [UserResponse.model_validate(user) for user in users]
+
         if pagination.page > math.ceil(total_count / pagination.size):
             raise NotFoundException
+
         logger.info("All users retrieved!")
-        return PaginationSchema(
+        return Pagination(
             page=pagination.page,
             size=pagination.size,
             items=items,
@@ -65,60 +135,63 @@ class UserService:
             total_pages=pagination.get_total_pages(total_count),
         )
 
-    async def get_user_by_id(self, user_id: int) -> UserDetailsResponseSchema:
-        user = await self._get_user_exists(user_id)
-        logger.info(f"User {user.username} retrieved successfully")
-        return UserDetailsResponseSchema.model_validate(user)
+    async def get_user_by_id(
+        self,
+        user_id: int,
+        current_user: UserDetailsResponse,
+    ) -> UserDetailsResponse:
+        if current_user.id == user_id:
+            raise BadRequestException
+
+        user = await self.uow.user_repository.get_user_by_id(user_id)
+        if not user:
+            raise NotFoundException
+
+        logger.info(f"User {user.id} retrieved successfully")
+        return UserDetailsResponse.model_validate(user)
 
     async def update_user(
         self,
-        user_id: int,
-        user_data: UserUpdateRequestSchema,
-    ) -> UserDetailsResponseSchema:
-        user = await self._get_user_exists(user_id)
+        user_data: UserUpdateRequest,
+        current_user: UserDetailsResponse,
+    ) -> UserDetailsResponse:
+        user = await self.uow.user_repository.get_user_by_id(current_user.id)
+        profile_fields = frozenset(ProfileUpdateNumberRequest.model_fields.keys())
+        password_field = frozenset(PasswordRequest.model_fields.keys())
+
         try:
             update_data = user_data.model_dump(exclude_unset=True)
             for field, value in update_data.items():
-                if field == "password":
-                    user.hashed_password = hash_password(value)
-                else:
-                    setattr(user, field, value)
-            logger.info(f"User {user.username} updated successfully")
+                if field in password_field:
+                    user.hashed_password = self.security.get_password_hash(value)
+                elif field in profile_fields:
+                    setattr(user.profile, field, value)
+
+            logger.info(f"User {user.email} updated successfully")
             return await self._save_user_data(user)
+
         except IntegrityError as err:
-            await self.uow.rollback()
             detail = self._get_integrity_error_detail(err)
             raise ConflictException(detail)
 
-    async def delete_user(self, user_id: int) -> None:
-        user = await self._get_user_exists(user_id)
-        await self.uow.user_repository.delete_user(user)
-        await self.uow.flush()
-        logger.info(f"User {user.username} deleted successfully")
-
-    async def _get_user_exists(self, user_id: int) -> UserModel:
-        user = await self.uow.user_repository.get_user_by_id(user_id)
-        if not user:
-            raise NotFoundException(
-                detail=f"User with id {user_id} does not exist",
-            )
-        return user
-
     async def _save_user_data(
         self,
-        user: UserModel,
-    ) -> UserDetailsResponseSchema:
+        user: User,
+    ) -> UserDetailsResponse:
         await self.uow.flush()
         await self.uow.refresh(user)
-        return UserDetailsResponseSchema.model_validate(user)
+
+        return UserDetailsResponse.model_validate(user)
 
     @staticmethod
     def _get_integrity_error_detail(err: IntegrityError) -> str:
-        error_text = getattr(err.orig, "detail", str(err.orig))
+        error_text = getattr(err.orig, "detail", str(err.orig.__str__()))
         match = re.search(r"\((.*?)\)=\((.*?)\)", error_text)
+
         if match:
             field, value = match.groups()
             detail = f"{field}: {value} already exists"
         else:
             detail = "Unique constraint violation"
+
         return detail

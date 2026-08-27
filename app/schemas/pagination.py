@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 
-class PaginationSchema[T](BaseModel):
+class Pagination[T](BaseModel):
     page: int
     size: int
     items: list[T]

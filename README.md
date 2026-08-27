@@ -13,10 +13,12 @@ The current version includes basic endpoints, tests, environment configuration, 
 - Alembic
 - Docker
 - Docker Compose
+- Pillow
 - Pipenv
 - PostgreSQL
 - Pre-commit
 - Pydantic
+- Pyjwt
 - Pytest
 - Redis
 - SQL Alchemy
@@ -34,7 +36,7 @@ cd quiz-be-app
 ```bash
 pipenv install
 ```
-3. Create <code>.env</code> file using <code>.env.sample</code>:
+3. Create `.env` file using <code>.env.sample</code>:
 ```bash
 cp .env.sample .env
 ```
@@ -105,6 +107,149 @@ docker exec quiz_backend alembic revision --autogenerate -m "message"
 ```bash
 docker exec quiz_backend alembic upgrade head
 ```
+---
+
+## Create Superuser
+
+1. Set the superuser credentials in the `.env` file.
+2. Start the application.
+3. Run:
+
+```bash
+docker exec quiz_backend python -m app.cli.create_superuser
+```
+4. The superuser will be created in the database.
+
+---
+
+## Authentication
+
+The API uses JWT Bearer authentication.
+
+### 1. Register a new user
+
+```
+POST /api/users
+```
+
+Example request:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "StrongPassword123!",
+  "name": "John",
+  "surname": "Doe",
+  "gender": "male",
+  "phone": "+380991112233"
+}
+```
+
+---
+
+### 2. Get an access token
+
+```
+POST /api/auth/login
+```
+
+Request:
+
+```
+username=user@example.com
+password=StrongPassword123!
+```
+
+Response:
+
+```json
+{
+  "access_token": "<JWT_TOKEN>",
+  "token_type": "bearer"
+}
+```
+
+---
+
+### 3. Authorize in Swagger UI
+
+1. Open `/docs`.
+2. Click **Authorize**.
+3. Paste the access token.
+4. Click **Authorize** and **Close**.
+
+After authorization, all protected endpoints can be accessed directly from Swagger UI.
+
+
+### Note
+Although the login form uses the username field,
+your API expects the user's email address in this field.
+This behavior follows the OAuth2 Password Flow specification.
+
+---
+
+### Auth0 Authentication
+
+This project supports two authentication methods: local (email/password) and Auth0 (OAuth via Google, etc).
+
+#### 1. Auth0 Dashboard Setup
+
+1. Create an application in [Auth0 Dashboard](https://manage.auth0.com) → **Applications → Applications → Create Application** → type **Single Page Application**.
+2. In **Settings**, configure:
+   - **Allowed Callback URLs**: `http://localhost:3000`
+   - **Allowed Logout URLs**: `http://localhost:3000`
+   - **Allowed Web Origins**: `http://localhost:3000`
+3. Create an API: **Applications → APIs → Create API**
+   - **Identifier** (audience): e.g. `http://localhost:4000/`
+4. Authorize your SPA client for this API: open the API → **Application Access** tab → enable the toggle for your application.
+5. Add a **Post-Login Action** (**Actions → Library → Build Custom**, trigger: `Login`) to expose profile claims on the access token, since they aren't included by default:
+
+```javascript
+   exports.onExecutePostLogin = async (event, api) => {
+     const namespace = 'https://myapp.example.com'; // must NOT be an *.auth0.com domain
+     if (event.authorization) {
+       api.accessToken.setCustomClaim(`${namespace}/email`, event.user.email);
+       api.accessToken.setCustomClaim(`${namespace}/email_verified`, event.user.email_verified);
+       api.accessToken.setCustomClaim(`${namespace}/given_name`, event.user.given_name);
+       api.accessToken.setCustomClaim(`${namespace}/family_name`, event.user.family_name);
+       api.accessToken.setCustomClaim(`${namespace}/picture`, event.user.picture);
+     }
+   };
+```
+
+   Deploy it, then attach it to the **Login** trigger under **Actions → Triggers**.
+
+#### 2. Environment Variables
+
+**Backend (`.env`)**
+```env
+AUTH0_DOMAIN=dev-xxxxxxxx.us.auth0.com
+AUTH0_AUDIENCE=<your Auth0 API Identifier>
+AUTH0_ACTIONS_NAMESPACE=https://myapp.example.com
+```
+
+**Frontend (`.env`)**
+```env
+REACT_APP_AUTH0_DOMAIN=dev-xxxxxxxx.us.auth0.com
+REACT_APP_AUTH0_CLIENT_ID=your_client_id
+REACT_APP_AUTH0_AUDIENCE=<your Auth0 API Identifier>
+```
+The value must exactly match the Identifier of the API configured in Auth0
+
+#### 3. How It Works
+
+1. Frontend redirects to Auth0 via `@auth0/auth0-react` (`loginWithRedirect`).
+2. After login, the SPA requests an access token (`getAccessTokenSilently`) and sends it as `Authorization: Bearer <token>` to `POST /api/auth/login/auth0_callback`.
+3. Backend verifies the token's signature against Auth0's JWKS (`PyJWKClient`), checks `audience`/`issuer`, then:
+   - looks up the user by email;
+   - if not found, creates a new user (`auth_provider="auth0"`, no password) and downloads their avatar from the `picture` claim, if present.
+4. Returns the same `UserDetailsResponse` shape as local login.
+
+#### 4. Notes
+
+- Users created via Auth0 have `hashed_password = None` and `auth_provider = "auth0"`. Local login explicitly rejects these accounts with a message pointing users to Auth0/Google sign-in.
+- Avatar downloads follow redirects and default to Gravatar's fallback image when the user has none set.
+
 ---
 
 ## Redis Cache
