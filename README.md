@@ -224,7 +224,7 @@ This project supports two authentication methods: local (email/password) and Aut
 **Backend (`.env`)**
 ```env
 AUTH0_DOMAIN=dev-xxxxxxxx.us.auth0.com
-AUTH0_AUDIENCE=http://localhost:4000/
+AUTH0_AUDIENCE=<your Auth0 API Identifier>
 AUTH0_ACTIONS_NAMESPACE=https://myapp.example.com
 ```
 
@@ -232,8 +232,9 @@ AUTH0_ACTIONS_NAMESPACE=https://myapp.example.com
 ```env
 REACT_APP_AUTH0_DOMAIN=dev-xxxxxxxx.us.auth0.com
 REACT_APP_AUTH0_CLIENT_ID=your_client_id
-REACT_APP_AUTH0_AUDIENCE=http://localhost:4000/
+REACT_APP_AUTH0_AUDIENCE=<your Auth0 API Identifier>
 ```
+The value must exactly match the Identifier of the API configured in Auth0
 
 #### 3. How It Works
 

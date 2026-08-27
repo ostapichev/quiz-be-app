@@ -2,7 +2,8 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from io import BytesIO
 
-from fastapi import status, Request
+from faker import Faker
+from fastapi import Request, status
 from respx import MockRouter
 from PIL import Image
 
@@ -77,12 +78,14 @@ async def test_verify_auth0_user_business_logic(
     make_auth0_payload: PayloadAuth0Factory,
     mock_verify_token: MokeVerifyTokenFactory,
     monkeypatch: MonkeyPatch,
+    faker_instance: Faker,
 ) -> None:
-    payload = make_auth0_payload(email="user_auth0@example.com")
+    email = faker_instance.unique.email()
+    payload = make_auth0_payload(email)
     mock_verify_token(payload)
     result = await auth_service.verify_auth0_user(test_request)
 
-    assert result.email == "user_auth0@example.com"
+    assert result.email == email
 
 
 @pytest.mark.asyncio
@@ -91,12 +94,14 @@ async def test_verify_auth0_user_creates_new_user(
     make_auth0_payload: PayloadAuth0Factory,
     mock_verify_token: MokeVerifyTokenFactory,
     test_request: Request,
+    faker_instance: Faker,
 ) -> None:
-    payload = make_auth0_payload(email="user_auth0@example.com")
+    email = faker_instance.unique.email()
+    payload = make_auth0_payload(email)
     mock_verify_token(payload)
     result = await auth_service.verify_auth0_user(test_request)
 
-    assert result.email == "user_auth0@example.com"
+    assert result.email == email
     assert result.profile.name == "Name"
     assert result.profile.surname == "Surname"
 

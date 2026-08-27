@@ -158,9 +158,9 @@ def make_image_file() -> ImageFactory:
 
 
 @pytest.fixture
-def make_auth0_payload() -> PayloadAuth0Factory:
+def make_auth0_payload(faker_instance: Faker) -> PayloadAuth0Factory:
     def _make(
-        email: str = "user_auth0@example.com",
+        email: str = faker_instance.unique.email(),
         given_name: str | None = "Name",
         family_name: str | None = "Surname",
         picture: str | None = None,

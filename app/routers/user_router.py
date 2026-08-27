@@ -95,6 +95,7 @@ async def upload_avatar(
     "/avatar",
     description="Delete an avatar",
     response_model=UserDetailsResponse,
+    status_code=status.HTTP_200_OK,
 )
 async def delete_avatar(
     service: ImageService = Depends(get_image_service),

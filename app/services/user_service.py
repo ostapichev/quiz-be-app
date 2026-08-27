@@ -44,7 +44,7 @@ class UserService:
     async def signup_user(
         self,
         user_data: UserSignUpRequest,
-        avatar: UploadFile,
+        avatar_file: UploadFile | None = None,
     ) -> UserDetailsResponse:
         user_data = NewUserRequest(
             email=user_data.email,
@@ -53,13 +53,13 @@ class UserService:
             surname=user_data.surname,
             phone=user_data.phone,
         )
-        return await self.create_user(user_data, avatar)
+        return await self.create_user(user_data, avatar_file)
 
     async def create_user(
         self,
         user_data: NewUserRequest,
         avatar_file: UploadFile | None = None,
-        avatar_path: str | None = None,
+        picture_url: str | None = None,
     ) -> UserDetailsResponse:
         if user_data.auth_method == AuthMethodEnum.local and not user_data.password:
             raise ValueError("Password is required for registration")
@@ -70,7 +70,6 @@ class UserService:
                 if user_data.password
                 else None
             )
-
             user = User(
                 email=user_data.email,
                 hashed_password=hashed_password,
@@ -90,18 +89,21 @@ class UserService:
 
             await self.uow.user_repository.save(user)
             await self.uow.flush()
-
         except IntegrityError as err:
             detail = self._get_integrity_error_detail(err)
             raise ConflictException(detail)
 
         if avatar_file:
-            avatar_path = await self.image_service.create_avatar(
+            picture_url = await self.image_service.create_avatar(
                 user_id=user.public_id,
                 avatar_file=avatar_file,
             )
 
-        if avatar_path:
+        if picture_url:
+            avatar_path = await self.image_service.create_avatar_from_url(
+                user_id=user.public_id,
+                picture_url=picture_url,
+            )
             profile.picture = avatar_path
             await self.uow.user_repository.save(user)
 
@@ -183,7 +185,7 @@ class UserService:
 
     @staticmethod
     def _get_integrity_error_detail(err: IntegrityError) -> str:
-        error_text = getattr(err.orig, "detail", str(err.orig))
+        error_text = getattr(err.orig, "detail", str(err.orig.__str__()))
         match = re.search(r"\((.*?)\)=\((.*?)\)", error_text)
 
         if match:

@@ -71,9 +71,7 @@ class AuthService:
             password=form_data.password,
         )
 
-        auth_user = await self._authenticate_user(login_data)
-
-        if not auth_user:
+        if not await self._authenticate_user(login_data):
             raise UnauthorizedException
 
         access_token_expires = timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -102,6 +100,8 @@ class AuthService:
             raise self._credentials_exception
 
         user = await self.uow.user_repository.get_user_by_email(token_data.email)
+        if user is None:
+            raise self._credentials_exception
 
         logger.info(f"Current user: {token_data.email.__str__()} retrieved!")
         return user
@@ -121,13 +121,11 @@ class AuthService:
         name = payload.get(f"{namespace}/given_name")
         surname = payload.get(f"{namespace}/family_name")
         picture_url = payload.get(f"{namespace}/picture")
-        email_verified = payload.get(f"{namespace}/email_verified")
         user_id = payload.get(f"{namespace}/user_id")
+        email_verified = payload.get(f"{namespace}/email_verified")
 
-        avatar_path = await self.image_service.create_avatar_from_url(
-            user_id,
-            picture_url,
-        )
+        if not email_verified:
+            raise UnauthorizedException("Email is not verified")
 
         new_user = NewUserRequest(
             email=email,
@@ -137,11 +135,13 @@ class AuthService:
         )
 
         logger.info(
-            f"User {email.__str__()}, email verified: {email_verified.__str__()} saved"
+            f"User {email.__str__()},"
+            f" email verified: {email_verified.__str__()}, "
+            f"id: {user_id.__str__()} saved"
         )
         return await self.user_service.create_user(
             user_data=new_user,
-            avatar_path=avatar_path,
+            picture_url=picture_url,
         )
 
     async def decode_auth0_token(self, request: Request) -> dict:
@@ -149,8 +149,9 @@ class AuthService:
 
         try:
             signing_key = self.jwks_client.get_signing_key_from_jwt(token)
-        except PyJWKClientError:
-            raise UnauthorizedException
+        except PyJWKClientError as exc:
+            logger.exception("Failed to fetch Auth0 signing key")
+            raise UnauthorizedException from exc
 
         try:
             return decode(
@@ -194,8 +195,8 @@ class AuthService:
             raise cls._credentials_exception
 
         try:
-            scheme, token = auth_header.split(" ")
-            if scheme.lower() != "bearer":
+            scheme, _, token = auth_header.partition(" ")
+            if scheme.lower() != "bearer" or not token:
                 raise cls._credentials_exception
         except ValueError:
             raise cls._credentials_exception
